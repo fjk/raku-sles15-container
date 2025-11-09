@@ -144,3 +144,30 @@ Notes
 	•	modules.conf defines the exact module set embedded in the runtime.
 	•	Later, CI will automatically loop through each module and run use <Module> as part of the build test.
 
+## Create a new Release 
+
+Only with git push origin eg. v0.0.1 we start a release release.yml-Workflow.
+
+This will then happen automatically:
+	1.	Image-Build: raku-sles15sp6:0.0.1
+	2.	raku -v-Test
+	3.	Image as raku-sles15sp6-0.0.1.tar in build/
+	4.	Runtime as raku-runtime-0.0.1.tar.gz in build/
+	5.	GitHub-Release v0.0.1 with both Files as Assets
+
+This is the process: 
+
+cd ~/repos/github.com/raku-sles15-container
+
+# check commits (and remember to to local podman builds and checks before
+git status
+
+# if there are changes to commit then commit
+# git add ...
+# git commit -m "Prepare for new release x.x.x"
+
+# set new Tag
+git tag v0.0.2
+
+# Tag nach GitHub pushen
+git push origin v0.0.2
