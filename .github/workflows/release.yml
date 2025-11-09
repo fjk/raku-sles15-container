@@ -33,6 +33,22 @@ jobs:
       - name: Test Raku inside image
         run: |
           docker run --rm "${IMAGE_BASENAME}:${VERSION}" raku -v
+      
+      - name: Test configured Raku modules from modules.conf
+        run: |
+          if [ -f modules.conf ]; then
+            echo "Testing Raku modules from modules.conf..."
+            while IFS= read -r module; do
+              case "$module" in
+                ''|\#*) continue ;;
+              esac
+              echo "  -> use $module"
+              docker run --rm "${IMAGE_BASENAME}:${VERSION}" \
+                raku -e "use $module; say qq[OK: $module];"
+            done < modules.conf
+          else
+            echo "modules.conf not found, skipping module tests."
+          fi
 
       - name: Save container image as tarball
         run: |
