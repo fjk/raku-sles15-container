@@ -22,3 +22,19 @@ jobs:
       - name: Test Raku inside the image
         run: |
           docker run --rm raku-sles15sp6:test raku -v
+
+      - name: Test configured Raku modules from modules.conf
+        run: |
+          if [ -f modules.conf ]; then
+            echo "Testing Raku modules from modules.conf..."
+            while IFS= read -r module; do
+              case "$module" in
+                ''|\#*) continue ;;  # skip empty lines and comments
+              esac
+              echo "  -> use $module"
+              docker run --rm raku-sles15sp6:test \
+                raku -e "use $module; say qq[OK: $module];"
+            done < modules.conf
+          else
+            echo "modules.conf not found, skipping module tests."
+          fi
