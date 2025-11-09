@@ -1,0 +1,68 @@
+name: Build and Publish Raku Runtime Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_BASENAME: raku-sles15sp6
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Using VERSION=${VERSION}"
+
+      - name: Prepare build directory
+        run: |
+          mkdir -p build
+
+      - name: Build Raku image
+        run: |
+          docker build -t "${IMAGE_BASENAME}:${VERSION}" -f Containerfile .
+
+      - name: Test Raku inside image
+        run: |
+          docker run --rm "${IMAGE_BASENAME}:${VERSION}" raku -v
+
+      - name: Save container image as tarball
+        run: |
+          docker save -o "build/${IMAGE_BASENAME}-${VERSION}.tar" "${IMAGE_BASENAME}:${VERSION}"
+
+      - name: Extract portable Raku runtime tarball
+        run: |
+          docker run --rm "${IMAGE_BASENAME}:${VERSION}" sh -lc '
+            set -e
+            cd /root/.rakubrew
+            current_line=$(/root/.rakubrew/bin/rakubrew current)
+            current=$(echo "$current_line" | awk "{print \$NF}")
+            echo "Detected active Raku version directory: $current" >&2
+            cd versions
+            tar czf - "$current"
+          ' > "build/raku-runtime-${VERSION}.tar.gz"
+
+      - name: Create GitHub Release and upload artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            Automated release for Raku runtime version ${{ env.VERSION }}.
+
+            Includes:
+            - Container image tarball
+            - Portable Raku runtime tarball for SLES15
+          files: |
+            build/${{ env.IMAGE_BASENAME }}-${{ env.VERSION }}.tar
+            build/raku-runtime-${{ env.VERSION }}.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
