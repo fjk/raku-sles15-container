@@ -1,5 +1,10 @@
 # 🦋 Raku SLES15 Runtime Builder
 
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/fjk/raku-sles15-container?label=latest%20release)](https://github.com/fjk/raku-sles15-container/releases)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/fjk/raku-sles15-container/release.yml?label=build)](https://github.com/fjk/raku-sles15-container/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-SLES15%20|%20macOS-blue.svg)](#)
+
 This project builds a **portable Raku runtime** (Rakudo + Zef) for  
 **SUSE Linux Enterprise 15 (SP6/SP7)** using **Podman on macOS**.  
 
@@ -151,5 +156,5 @@ MIT License (or adjust as needed for your organization).
 
 ---
 
-**Author:** *fk — macOS ↔ SLES 15 containerized Raku runtime builder project*  
+**Author:** *fjk — macOS ↔ SLES 15 containerized Raku runtime builder project*  
 Built with ❤️ for portability and clarity.
