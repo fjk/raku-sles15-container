@@ -1,0 +1,29 @@
+STEP 1/7: FROM --platform=linux/amd64 opensuse/leap:15.6
+STEP 2/7: RUN zypper -n ref &&     zypper -n in --no-recommends curl git perl make gcc ca-certificates wget tar gzip &&     zypper clean -a
+--> Using cache 6da2001d354b4d75088388cdf976542a482f6d58b45733ad05f340cf37c3771c
+--> 6da2001d354b
+STEP 3/7: RUN curl -s https://rakubrew.org/install-on-perl.sh -o /tmp/install-on-perl.sh &&     bash /tmp/install-on-perl.sh &&     /root/.rakubrew/bin/rakubrew mode shim &&     RAKUBREW_MODE=shim /root/.rakubrew/bin/rakubrew download moar &&     RAKUBREW_MODE=shim /root/.rakubrew/bin/rakubrew build-zef &&     rm -f /tmp/install-on-perl.sh
+--> Using cache aec233fbc4572e4aa8e0d1548d237d3a41d10f28057b3d4dae21cae0f719739f
+--> aec233fbc457
+STEP 4/7: ENV PATH="/root/.rakubrew/shims:/root/.rakubrew/bin:${PATH}"
+--> Using cache 975c9c1a2225fb5374031d33b412d3952bf6c6ffaccd00779d0820b2157d91ea
+--> 975c9c1a2225
+STEP 5/7: COPY modules.conf /root/modules.conf
+--> f0148c121f81
+STEP 6/7: RUN sh -lc '  if [ -f /root/modules.conf ]; then     echo "Installing Raku modules from modules.conf:";     modules=$(grep -Ev "^[[:space:]]*#|^[[:space:]]*$" /root/modules.conf || true);     if [ -n "$modules" ]; then       echo "$modules";       ZEF=/root/.rakubrew/shims/zef;       if [ ! -x "$ZEF" ]; then         echo "ERROR: zef not found at $ZEF";         exit 1;       fi;       echo "$modules" | xargs -r "$ZEF" install --/test;     else       echo "No modules to install (modules.conf is empty or only comments).";     fi;   else     echo "No /root/modules.conf found, skipping Raku module installation.";   fi'
+Installing Raku modules from modules.conf:
+JSON::Fast
+Cro
+===> Searching for: JSON::Fast, Cro
+===> Staging JSON::Fast:ver<0.19>:auth<cpan:TIMOTIMO>
+===> Staging [OK] for JSON::Fast:ver<0.19>:auth<cpan:TIMOTIMO>
+===> Staging Cro::Core:ver<0.8.10>:auth<zef:cro>:api<0>
+===> Staging [OK] for Cro::Core:ver<0.8.10>:auth<zef:cro>:api<0>
+===> Installing: JSON::Fast:ver<0.19>:auth<cpan:TIMOTIMO>
+===> Installing: Cro::Core:ver<0.8.10>:auth<zef:cro>:api<0>
+--> 817079347977
+STEP 7/7: CMD ["raku", "-v"]
+COMMIT raku-sles15sp6:dev
+--> 745c6bb04c93
+Successfully tagged localhost/raku-sles15sp6:dev
+745c6bb04c93825eceaebbbabc87cce0ef8efd85f0fddf975444fc5a7a13ef0b
