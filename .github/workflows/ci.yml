@@ -23,18 +23,25 @@ jobs:
         run: |
           docker run --rm raku-sles15sp6:test raku -v
 
-      - name: Test configured Raku modules from modules.conf
+      - name: Test Raku modules from modules.conf
         run: |
           if [ -f modules.conf ]; then
             echo "Testing Raku modules from modules.conf..."
-            while IFS= read -r module; do
-              case "$module" in
-                ''|\#*) continue ;;  # skip empty lines and comments
+            while read -r mod; do
+              # Skip empty lines and comments
+              [ -z "$mod" ] && continue
+              case "$mod" in
+              \#*) continue ;;
               esac
-              echo "  -> use $module"
-              docker run --rm raku-sles15sp6:test \
-                raku -e "use $module; say qq[OK: $module];"
+
+              echo "  -> use $mod"
+              if [ "$mod" = "Cro::HTTP" ]; then
+                # Test the full Cro HTTP stack instead of just 'use Cro::HTTP'
+                raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
+              else
+                raku -e "use $mod; say 'OK: $mod';"
+              fi
             done < modules.conf
           else
-            echo "modules.conf not found, skipping module tests."
+            echo "No modules.conf, skipping module tests."
           fi
