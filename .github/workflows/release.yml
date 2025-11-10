@@ -84,4 +84,4 @@ jobs:
             build/${{ env.IMAGE_BASENAME }}-${{ env.VERSION }}.tar
             build/raku-runtime-${{ env.VERSION }}.tar.gz
         env:
-          token: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
