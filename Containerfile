@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 opensuse/leap:15.5
+FROM --platform=linux/amd64 opensuse/leap:15.6
 
 # Basis-Tools
 RUN zypper -n ref && \
