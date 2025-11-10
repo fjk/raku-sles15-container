@@ -1,8 +1,12 @@
 FROM --platform=linux/amd64 opensuse/leap:15.6
 
-# Basis-Tools
+# Basis-Tools + OpenSSL (für Cro::TLS / IO::Socket::Async::SSL)
 RUN zypper -n ref && \
-    zypper -n in --no-recommends curl git perl make gcc ca-certificates wget tar gzip && \
+    zypper -n in --no-recommends \
+        curl git perl make gcc ca-certificates wget tar gzip \
+        openssl \
+        libopenssl1_1 \
+        libopenssl-1_1-devel && \
     zypper clean -a
 
 # Rakubrew + aktuelles Rakudo + zef für root installieren
