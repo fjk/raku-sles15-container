@@ -37,9 +37,11 @@ jobs:
               echo "  -> use $mod"
               if [ "$mod" = "Cro::HTTP" ]; then
                 # Test the full Cro HTTP stack instead of just 'use Cro::HTTP'
+                docker run --rm raku-sles15sp6:test \
                 raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
-              else
-                raku -e "use $mod; say 'OK: $mod';"
+              else raku -e "use $mod; say 'OK: $mod';"
+                docker run --rm raku-sles15sp6:test \
+                raku -e "use $mod; say qq[OK: $module];"
               fi
             done < modules.conf
           else

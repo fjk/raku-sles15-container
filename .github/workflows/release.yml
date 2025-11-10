@@ -46,8 +46,14 @@ jobs:
                 ''|\#*) continue ;;
               esac
               echo "  -> use $module"
-              docker run --rm "${IMAGE_BASENAME}:${VERSION}" \
-                raku -e "use $module; say qq[OK: $module];"
+              if [ "$module" = "Cro::HTTP" ]; then
+                # Test the full Cro HTTP stack instead of just 'use Cro::HTTP'
+                docker run --rm "${IMAGE_BASENAME}:${VERSION}" \
+                  raku -e "use $module::Router; use $module::Server; use $module::Log::File; say 'OK: Cro HTTP stack';"
+              else 
+                docker run --rm "${IMAGE_BASENAME}:${VERSION}" \
+                  raku -e "use $module; say qq[OK: $module];"
+              fi
             done < modules.conf
           else
             echo "modules.conf not found, skipping module tests."
