@@ -11,19 +11,22 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE_NAME: raku-sles15sp6:test
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Build Raku image (Docker)
         run: |
-          docker build -t raku-sles15sp6:test -f Containerfile .
+          docker build -t "${IMAGE_NAME}" -f Containerfile .
 
       - name: Test Raku inside the image
         run: |
-          docker run --rm raku-sles15sp6:test raku -v
+          docker run --rm "${IMAGE_NAME}" raku -v
 
-      - name: Test Raku modules from modules.conf
+      - name: Test Raku modules from modules.conf inside image
         run: |
           if [ -f modules.conf ]; then
             echo "Testing Raku modules from modules.conf..."
@@ -31,15 +34,17 @@ jobs:
               # Skip empty lines and comments
               [ -z "$mod" ] && continue
               case "$mod" in
-              \#*) continue ;;
+                \#*) continue ;;
               esac
+
               echo "  -> use $mod"
               if [ "$mod" = "Cro::HTTP" ]; then
                 # Test the full Cro HTTP stack instead of just 'use Cro::HTTP'
-                docker run --rm raku-sles15sp6:test \
+                docker run --rm "${IMAGE_NAME}" \
                   raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
-              else docker run --rm raku-sles15sp6:test \
-                raku -e "use $mod; say qq[OK: $module];"
+              else
+                docker run --rm "${IMAGE_NAME}" \
+                  raku -e "use $mod; say \"OK: $mod\";"
               fi
             done < modules.conf
           else
