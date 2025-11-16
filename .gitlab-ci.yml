@@ -1,0 +1,8 @@
+stages:
+  - test
+
+test-run:
+  stage: test
+  image: alpine
+  script:
+    - echo "GitLab CI läuft!"
