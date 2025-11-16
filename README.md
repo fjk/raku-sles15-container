@@ -213,7 +213,6 @@ In the repository root:
 
 # GitHub ↔ GitLab Sync
 
-```md
 ```mermaid  
 flowchart LR
   Dev[(Local repo)]
