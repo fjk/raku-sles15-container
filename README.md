@@ -211,6 +211,20 @@ In the repository root:
 
 ---
 
+# GitHub ↔ GitLab Sync
+
+flowchart LR
+  Dev[(Local repo)]
+  GH[(GitHub: origin)]
+  GL[(GitLab: gitlab)]
+
+  Dev -- "git pushall / ./git-sync.sh" --> GH
+  Dev -- "git pushall / ./git-sync.sh" --> GL
+
+  GH -. optional mirroring .- GL
+
+---
+
 ## 🧾 License
 
 MIT License (or adjust as needed for your organization).
