@@ -4,26 +4,27 @@ stages:
   - package
   - release
 
+# Gemeinsame Variablen (werden bei Jobs überschrieben, wenn nötig)
 variables:
   IMAGE_NAME: "raku-sles15sp6"
-  DOCKER_TLS_CERTDIR: ""
-  DOCKER_HOST: "tcp://docker:2375"
 
-# -------------------------------------------------------------------
-# Stage 1: Image bauen und als image.tar speichern
-# -------------------------------------------------------------------
-build-image:
+# ===============================================================
+# 🟣 Pipeline für gitlab.com  (docker:dind, volle 4 Stages)
+# ===============================================================
+
+# --- Stage 1: Image bauen und als image.tar speichern ----------
+build-image-gitlabcom:
   stage: build
-  # 🔐 Nur auf gitlab.com laufen lassen – NICHT auf code.siemens.com
-  rules:
-    - if: '$CI_SERVER_HOST == "gitlab.com"'
-      when: on_success
-    - when: never
   image: docker:24.0
   services:
     - docker:24.0-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com"'
   script:
-    - echo "Building container image..."
+    - echo "Building container image (gitlab.com)..."
     - docker build -t "${IMAGE_NAME}:${CI_COMMIT_SHA}" -f Containerfile .
     - echo "Saving image to image.tar..."
     - docker save -o image.tar "${IMAGE_NAME}:${CI_COMMIT_SHA}"
@@ -32,40 +33,36 @@ build-image:
       - image.tar
     expire_in: 1 week
 
-# -------------------------------------------------------------------
-# Stage 2a: Raku-Version testen
-# -------------------------------------------------------------------
-test-raku:
+# --- Stage 2a: Raku-Version testen -----------------------------
+test-raku-gitlabcom:
   stage: test
-  needs: ["build-image"]
-  # 🔐 Nur auf gitlab.com laufen lassen
-  rules:
-    - if: '$CI_SERVER_HOST == "gitlab.com"'
-      when: on_success
-    - when: never
+  needs: ["build-image-gitlabcom"]
   image: docker:24.0
   services:
     - docker:24.0-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com"'
   script:
     - echo "Loading image.tar..."
     - docker load -i image.tar
     - echo "Testing Raku..."
     - docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" raku -v
 
-# -------------------------------------------------------------------
-# Stage 2b: Module aus modules.conf testen
-# -------------------------------------------------------------------
-test-modules:
+# --- Stage 2b: Module aus modules.conf testen ------------------
+test-modules-gitlabcom:
   stage: test
-  needs: ["build-image"]
-  # 🔐 Nur auf gitlab.com laufen lassen
-  rules:
-    - if: '$CI_SERVER_HOST == "gitlab.com"'
-      when: on_success
-    - when: never
+  needs: ["build-image-gitlabcom"]
   image: docker:24.0
   services:
     - docker:24.0-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com"'
   script: |
     if [ ! -f modules.conf ]; then
       echo "No modules.conf — skipping tests."
@@ -94,20 +91,18 @@ test-modules:
       fi
     done < modules.conf
 
-# -------------------------------------------------------------------
-# Stage 3: Package – Runtime + Container-Tarball erzeugen (nur für Tags)
-# -------------------------------------------------------------------
-package:
+# --- Stage 3: Package – Runtime + Container-Tarball (nur Tags) -
+package-gitlabcom:
   stage: package
-  needs: ["build-image"]
-  # 🔐 Nur auf gitlab.com UND nur für Tags
-  rules:
-    - if: '$CI_SERVER_HOST == "gitlab.com" && $CI_COMMIT_TAG'
-      when: on_success
-    - when: never
+  needs: ["build-image-gitlabcom"]
   image: docker:24.0
   services:
     - docker:24.0-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: "tcp://docker:2375"
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com" && $CI_COMMIT_TAG'
   script:
     - mkdir -p build
     - echo "Loading image.tar..."
@@ -131,31 +126,25 @@ package:
         cd versions
         tar czf - "$current"
       ' > "build/raku-runtime-${CI_COMMIT_TAG}.tar.gz"
-
   artifacts:
     paths:
       - build/
     expire_in: 1 month
 
-# -------------------------------------------------------------------
-# Stage 4: Release – GitLab Release + Links zu Artefakten
-# -------------------------------------------------------------------
-release:
+# --- Stage 4: Release – GitLab Release (nur Tags auf gitlab.com)
+release-gitlabcom:
   stage: release
-  needs: ["package"]
-  # 🔐 Nur auf gitlab.com UND nur für Tags
+  needs: ["package-gitlabcom"]
+  image: alpine:latest
   rules:
     - if: '$CI_SERVER_HOST == "gitlab.com" && $CI_COMMIT_TAG'
-      when: on_success
-    - when: never
-  image: alpine:latest
   script:
-    - echo "Creating GitLab Release for ${CI_COMMIT_TAG}..."
+    - echo "Creating GitLab Release for ${CI_COMMIT_TAG} on gitlab.com..."
   release:
     name: "Release $CI_COMMIT_TAG"
     tag_name: "$CI_COMMIT_TAG"
     description: |
-      Automated release for Raku SLES runtime.
+      Automated release for Raku SLES runtime (gitlab.com).
 
       Includes:
        - Container image tarball
@@ -166,3 +155,40 @@ release:
           url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar"
         - name: "Portable Raku runtime"
           url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/raku-runtime-${CI_COMMIT_TAG}.tar.gz"
+
+# ===============================================================
+# 🔵 Pipeline für code.siemens.com  (podman in Leap-Image)
+#    → nur build + test, keine Releases (erstmal)
+# ===============================================================
+
+build-image-siemens:
+  stage: build
+  image: registry.opensuse.org/opensuse/leap:15.6
+  rules:
+    - if: '$CI_SERVER_HOST == "code.siemens.com"'
+  script:
+    - echo "Building container image (code.siemens.com, podman)..."
+    - zypper -n ref
+    - zypper -n in --no-recommends podman
+    - podman build -t "${IMAGE_NAME}:${CI_COMMIT_SHA}" -f Containerfile .
+    - echo "Saving image to image.tar..."
+    - podman save -o image.tar "${IMAGE_NAME}:${CI_COMMIT_SHA}"
+  artifacts:
+    paths:
+      - image.tar
+    expire_in: 1 week
+
+test-raku-siemens:
+  stage: test
+  needs: ["build-image-siemens"]
+  image: registry.opensuse.org/opensuse/leap:15.6
+  rules:
+    - if: '$CI_SERVER_HOST == "code.siemens.com"'
+  script:
+    - echo "Loading image.tar (podman)..."
+    - zypper -n ref
+    - zypper -n in --no-recommends podman
+    - podman load -i image.tar
+    - echo "Testing Raku in Siemens CI..."
+    - podman run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" raku -v
+    
