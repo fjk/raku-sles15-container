@@ -148,6 +148,67 @@ tar tzf build/raku-runtime-1.0.0.tar.gz | head
 - Artifacts are stored in `build/` and uploaded to GitHub automatically.  
 - Version tags follow `vX.Y.Z` semver style.
 
+## Syncing GitHub and GitLab remotes
+
+This repository is mirrored between **GitHub** and **GitLab**:
+
+- `origin` → GitHub (`https://github.com/fjk/raku-sles15-container`)
+- `gitlab` → GitLab (`https://gitlab.com/kroppi/raku-sles15-container`)
+
+To keep both remotes in sync from local development, a small helper script
+`git-sync.sh` is used.
+
+### Setup (once)
+
+In the repository root:
+
+```bash
+cat > git-sync.sh << 'EOF'
+#!/usr/bin/env bash
+#
+# git-sync.sh
+#
+# Push the current branch to both GitHub (origin) and GitLab (gitlab),
+# including tags (optional, see below).
+
+set -euo pipefail
+
+# Detect current branch
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+echo "Current branch: ${branch}"
+echo
+
+# Push to GitHub
+echo "→ Pushing to origin (GitHub)..."
+git push origin "${branch}"
+
+# Push to GitLab
+echo
+echo "→ Pushing to gitlab (GitLab)..."
+git push gitlab "${branch}"
+
+# Optional: also sync tags
+if [ "${1-}" = "--tags" ]; then
+  echo
+  echo "→ Also pushing tags to origin and gitlab..."
+  git push origin --tags
+  git push gitlab --tags
+fi
+
+echo
+echo "✅ Sync complete."
+EOF
+
+chmod +x git-sync.sh
+
+## To sync run 
+In the repository root:
+
+```bash
+./git-sync.sh
+```
+
 ---
 
 ## 🧾 License
@@ -155,6 +216,7 @@ tar tzf build/raku-runtime-1.0.0.tar.gz | head
 MIT License (or adjust as needed for your organization).
 
 ---
+
 
 **Author:** *fjk — macOS ↔ SLES 15 containerized Raku runtime builder project*  
 Built with ❤️ for portability and clarity.
