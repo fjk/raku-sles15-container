@@ -1,8 +1,130 @@
 stages:
+  - build
   - test
+  - package
+  - release
 
-test-run:
-  stage: test
-  image: alpine
+variables:
+  IMAGE_NAME: "raku-sles15sp6"
+  DOCKER_TLS_CERTDIR: ""   # Required for GitLab shared runners to use Docker-in-Docker
+
+# -------------------------------------------------------------------
+# Stage 1: Build the container
+# -------------------------------------------------------------------
+build-image:
+  stage: build
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
   script:
-    - echo "GitLab CI läuft!"
+    - echo "Building container image..."
+    - docker build -t "${IMAGE_NAME}:${CI_COMMIT_SHA}" -f Containerfile .
+  artifacts:
+    paths:
+      - image-info.txt
+    expire_in: 1 week
+
+# -------------------------------------------------------------------
+# Stage 2: Test Raku inside the image
+# -------------------------------------------------------------------
+test-raku:
+  stage: test
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  script:
+    - echo "Testing Raku..."
+    - docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" raku -v
+
+# -------------------------------------------------------------------
+# Stage 3: Test modules.conf inside container
+# -------------------------------------------------------------------
+test-modules:
+  stage: test
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  script:
+    - |
+      if [ ! -f modules.conf ]; then
+        echo "No modules.conf — skipping tests."
+        exit 0
+      fi
+
+      echo "Testing Raku modules..."
+      while read -r mod; do
+        [ -z "$mod" ] && continue
+        case "$mod" in
+          \#*) continue ;;
+        esac
+
+        echo "  -> use $mod"
+
+        if [ "$mod" = "Cro::HTTP" ]; then
+          docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
+            raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
+        else
+          docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
+            raku -e "use $mod; say \"OK: $mod\";"
+        fi
+      done < modules.conf
+
+# -------------------------------------------------------------------
+# Stage 4: Package (runtime + container tarball)
+# -------------------------------------------------------------------
+package:
+  stage: package
+  image: docker:24.0
+  services:
+    - docker:24.0-dind
+  script:
+    - mkdir -p build
+    - echo "Saving container image..."
+    - docker save -o "build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar" "${IMAGE_NAME}:${CI_COMMIT_SHA}"
+
+    - echo "Extracting Raku runtime from container..."
+    - |
+      docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" sh -lc '
+        set -e
+        cd /root/.rakubrew
+        current_line=$(/root/.rakubrew/bin/rakubrew current)
+        current=$(echo "$current_line" | awk "{print \$NF}")
+        echo "Detected runtime: $current" >&2
+        cd versions
+        tar czf - "$current"
+      ' > "build/raku-runtime-${CI_COMMIT_TAG}.tar.gz"
+
+  artifacts:
+    paths:
+      - build/
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_TAG   # Only run for tags (releases)
+
+# -------------------------------------------------------------------
+# Stage 5: Release to GitLab Releases
+# -------------------------------------------------------------------
+release:
+  stage: release
+  image: alpine:latest
+  needs:
+    - package
+  script:
+    - echo "Creating GitLab Release..."
+  release:
+    name: "Release $CI_COMMIT_TAG"
+    tag_name: "$CI_COMMIT_TAG"
+    description: |
+      Automated release for Raku SLES runtime.
+
+      Includes:
+       - Container tarball
+       - Portable Raku runtime tarball
+    assets:
+      links:
+        - name: "Container image tarball"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar"
+        - name: "Portable Raku runtime"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/raku-runtime-${CI_COMMIT_TAG}.tar.gz"
+  rules:
+    - if: $CI_COMMIT_TAG
