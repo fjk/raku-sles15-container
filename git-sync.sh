@@ -22,12 +22,26 @@ echo
 echo "→ Pushing to gitlab (GitLab)..."
 git push gitlab "${branch}"
 
+# --- Siemens GitLab ---------------------------------------------
+echo
+echo "→ Pushing to other (eg. xxx)..."
+git push siemens "${branch}"
+
 # Optional: also sync tags
 if [ "${1-}" = "--tags" ]; then
   echo
   echo "→ Also pushing tags to origin and gitlab..."
   git push origin --tags
   git push gitlab --tags
+fi
+
+# --- Optional: push tags ----------------------------------------
+if [ "${1-}" = "--tags" ]; then
+  echo
+  echo "→ Also pushing tags to all remotes..."
+  git push origin --tags
+  git push gitlab --tags
+  git push siemens --tags
 fi
 
 echo
