@@ -32,6 +32,3 @@ fi
 
 echo
 echo "✅ Sync complete."
-EOF
-
-chmod +x git-sync.sh
