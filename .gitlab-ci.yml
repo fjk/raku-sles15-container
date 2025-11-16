@@ -14,10 +14,10 @@ variables:
 # -------------------------------------------------------------------
 build-image:
   stage: build
-    # 🔐 run only on gitlab.com
+  # 🔐 Nur auf gitlab.com laufen lassen – NICHT auf code.siemens.com
   rules:
     - if: '$CI_SERVER_HOST == "gitlab.com"'
-      when: always
+      when: on_success
     - when: never
   image: docker:24.0
   services:
@@ -38,6 +38,11 @@ build-image:
 test-raku:
   stage: test
   needs: ["build-image"]
+  # 🔐 Nur auf gitlab.com laufen lassen
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com"'
+      when: on_success
+    - when: never
   image: docker:24.0
   services:
     - docker:24.0-dind
@@ -53,37 +58,41 @@ test-raku:
 test-modules:
   stage: test
   needs: ["build-image"]
+  # 🔐 Nur auf gitlab.com laufen lassen
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com"'
+      when: on_success
+    - when: never
   image: docker:24.0
   services:
     - docker:24.0-dind
-  script:
-    - |
-      if [ ! -f modules.conf ]; then
-        echo "No modules.conf — skipping tests."
-        exit 0
+  script: |
+    if [ ! -f modules.conf ]; then
+      echo "No modules.conf — skipping tests."
+      exit 0
+    fi
+
+    echo "Loading image.tar..."
+    docker load -i image.tar
+
+    echo "Testing Raku modules from modules.conf..."
+    while read -r mod; do
+      # Skip empty and commented lines
+      [ -z "$mod" ] && continue
+      case "$mod" in
+        \#*) continue ;;
+      esac
+
+      echo "  -> use $mod"
+
+      if [ "$mod" = "Cro::HTTP" ]; then
+        docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
+          raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
+      else
+        docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
+          raku -e "use $mod; say \"OK: $mod\";"
       fi
-
-      echo "Loading image.tar..."
-      docker load -i image.tar
-
-      echo "Testing Raku modules from modules.conf..."
-      while read -r mod; do
-        # Skip empty and commented lines
-        [ -z "$mod" ] && continue
-        case "$mod" in
-          \#*) continue ;;
-        esac
-
-        echo "  -> use $mod"
-
-        if [ "$mod" = "Cro::HTTP" ]; then
-          docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
-            raku -e "use Cro::HTTP::Router; use Cro::HTTP::Server; use Cro::HTTP::Log::File; say 'OK: Cro HTTP stack';"
-        else
-          docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" \
-            raku -e "use $mod; say \"OK: $mod\";"
-        fi
-      done < modules.conf
+    done < modules.conf
 
 # -------------------------------------------------------------------
 # Stage 3: Package – Runtime + Container-Tarball erzeugen (nur für Tags)
@@ -91,11 +100,14 @@ test-modules:
 package:
   stage: package
   needs: ["build-image"]
+  # 🔐 Nur auf gitlab.com UND nur für Tags
+  rules:
+    - if: '$CI_SERVER_HOST == "gitlab.com" && $CI_COMMIT_TAG'
+      when: on_success
+    - when: never
   image: docker:24.0
   services:
     - docker:24.0-dind
-  rules:
-    - if: $CI_COMMIT_TAG     # nur für Tags laufen
   script:
     - mkdir -p build
     - echo "Loading image.tar..."
@@ -131,9 +143,12 @@ package:
 release:
   stage: release
   needs: ["package"]
-  image: alpine:latest
+  # 🔐 Nur auf gitlab.com UND nur für Tags
   rules:
-    - if: $CI_COMMIT_TAG
+    - if: '$CI_SERVER_HOST == "gitlab.com" && $CI_COMMIT_TAG'
+      when: on_success
+    - when: never
+  image: alpine:latest
   script:
     - echo "Creating GitLab Release for ${CI_COMMIT_TAG}..."
   release:
