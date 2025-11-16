@@ -6,10 +6,11 @@ stages:
 
 variables:
   IMAGE_NAME: "raku-sles15sp6"
-  DOCKER_TLS_CERTDIR: ""   # Required for GitLab shared runners to use Docker-in-Docker
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: "tcp://docker:2375"
 
 # -------------------------------------------------------------------
-# Stage 1: Build the container
+# Stage 1: Image bauen und als image.tar speichern
 # -------------------------------------------------------------------
 build-image:
   stage: build
@@ -19,28 +20,34 @@ build-image:
   script:
     - echo "Building container image..."
     - docker build -t "${IMAGE_NAME}:${CI_COMMIT_SHA}" -f Containerfile .
+    - echo "Saving image to image.tar..."
+    - docker save -o image.tar "${IMAGE_NAME}:${CI_COMMIT_SHA}"
   artifacts:
     paths:
-      - image-info.txt
+      - image.tar
     expire_in: 1 week
 
 # -------------------------------------------------------------------
-# Stage 2: Test Raku inside the image
+# Stage 2a: Raku-Version testen
 # -------------------------------------------------------------------
 test-raku:
   stage: test
+  needs: ["build-image"]
   image: docker:24.0
   services:
     - docker:24.0-dind
   script:
+    - echo "Loading image.tar..."
+    - docker load -i image.tar
     - echo "Testing Raku..."
     - docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" raku -v
 
 # -------------------------------------------------------------------
-# Stage 3: Test modules.conf inside container
+# Stage 2b: Module aus modules.conf testen
 # -------------------------------------------------------------------
 test-modules:
   stage: test
+  needs: ["build-image"]
   image: docker:24.0
   services:
     - docker:24.0-dind
@@ -51,8 +58,12 @@ test-modules:
         exit 0
       fi
 
-      echo "Testing Raku modules..."
+      echo "Loading image.tar..."
+      docker load -i image.tar
+
+      echo "Testing Raku modules from modules.conf..."
       while read -r mod; do
+        # Skip empty and commented lines
         [ -z "$mod" ] && continue
         case "$mod" in
           \#*) continue ;;
@@ -70,21 +81,31 @@ test-modules:
       done < modules.conf
 
 # -------------------------------------------------------------------
-# Stage 4: Package (runtime + container tarball)
+# Stage 3: Package – Runtime + Container-Tarball erzeugen (nur für Tags)
 # -------------------------------------------------------------------
 package:
   stage: package
+  needs: ["build-image"]
   image: docker:24.0
   services:
     - docker:24.0-dind
+  rules:
+    - if: $CI_COMMIT_TAG     # nur für Tags laufen
   script:
     - mkdir -p build
-    - echo "Saving container image..."
-    - docker save -o "build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar" "${IMAGE_NAME}:${CI_COMMIT_SHA}"
+    - echo "Loading image.tar..."
+    - docker load -i image.tar
+
+    # Tag innerhalb der Pipeline (z.B. raku-sles15sp6:v0.0.3)
+    - echo "Tagging image for release tag ${CI_COMMIT_TAG}..."
+    - docker tag "${IMAGE_NAME}:${CI_COMMIT_SHA}" "${IMAGE_NAME}:${CI_COMMIT_TAG}"
+
+    - echo "Saving container image to tarball..."
+    - docker save -o "build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar" "${IMAGE_NAME}:${CI_COMMIT_TAG}"
 
     - echo "Extracting Raku runtime from container..."
     - |
-      docker run --rm "${IMAGE_NAME}:${CI_COMMIT_SHA}" sh -lc '
+      docker run --rm "${IMAGE_NAME}:${CI_COMMIT_TAG}" sh -lc '
         set -e
         cd /root/.rakubrew
         current_line=$(/root/.rakubrew/bin/rakubrew current)
@@ -98,19 +119,18 @@ package:
     paths:
       - build/
     expire_in: 1 month
-  rules:
-    - if: $CI_COMMIT_TAG   # Only run for tags (releases)
 
 # -------------------------------------------------------------------
-# Stage 5: Release to GitLab Releases
+# Stage 4: Release – GitLab Release + Links zu Artefakten
 # -------------------------------------------------------------------
 release:
   stage: release
+  needs: ["package"]
   image: alpine:latest
-  needs:
-    - package
+  rules:
+    - if: $CI_COMMIT_TAG
   script:
-    - echo "Creating GitLab Release..."
+    - echo "Creating GitLab Release for ${CI_COMMIT_TAG}..."
   release:
     name: "Release $CI_COMMIT_TAG"
     tag_name: "$CI_COMMIT_TAG"
@@ -118,7 +138,7 @@ release:
       Automated release for Raku SLES runtime.
 
       Includes:
-       - Container tarball
+       - Container image tarball
        - Portable Raku runtime tarball
     assets:
       links:
@@ -126,5 +146,3 @@ release:
           url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/${IMAGE_NAME}-${CI_COMMIT_TAG}.tar"
         - name: "Portable Raku runtime"
           url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/build/raku-runtime-${CI_COMMIT_TAG}.tar.gz"
-  rules:
-    - if: $CI_COMMIT_TAG
