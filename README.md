@@ -152,43 +152,43 @@ tar tzf build/raku-runtime-1.0.0.tar.gz | head
 
 This repository is mirrored between **GitHub** and **GitLab**:
 
-- `origin` → GitHub (`https://github.com/fjk/raku-sles15-container`)
-- `gitlab` → GitLab (`https://gitlab.com/kroppi/raku-sles15-container`)
+- `origin` → GitHub  
+  `https://github.com/fjk/raku-sles15-container`
+- `gitlab` → GitLab  
+  `https://gitlab.com/kroppi/raku-sles15-container`
 
-To keep both remotes in sync from local development, a small helper script
-`git-sync.sh` is used.
+To keep both remotes in sync from local development, a helper script
+`git-sync.sh` is provided.
 
-### Setup (once)
+---
 
-In the repository root:
+### 🔧 Setup (once)
+
+Create the sync script in the repository root:
 
 ```bash
 cat > git-sync.sh << 'EOF'
-#!/usr/bin/env bash
+#!/usr/bin/env bash'
 #
 # git-sync.sh
 #
-# Push the current branch to both GitHub (origin) and GitLab (gitlab),
-# including tags (optional, see below).
+# Pushes the current branch to both GitHub (origin) and GitLab (gitlab),
+# optionally including tags.
 
 set -euo pipefail
 
-# Detect current branch
 branch="$(git rev-parse --abbrev-ref HEAD)"
 
 echo "Current branch: ${branch}"
 echo
 
-# Push to GitHub
 echo "→ Pushing to origin (GitHub)..."
 git push origin "${branch}"
 
-# Push to GitLab
 echo
 echo "→ Pushing to gitlab (GitLab)..."
 git push gitlab "${branch}"
 
-# Optional: also sync tags
 if [ "${1-}" = "--tags" ]; then
   echo
   echo "→ Also pushing tags to origin and gitlab..."
@@ -201,28 +201,36 @@ echo "✅ Sync complete."
 EOF
 
 chmod +x git-sync.sh
+```
 
-## To sync run 
-In the repository root:
+---
+
+### ▶️ Usage
+
+Sync the current branch:
 
 ```bash
 ./git-sync.sh
 ```
 
+Sync branch **and tags**:
+
+```bash
+./git-sync.sh --tags
+```
+
 ---
 
-# GitHub ↔ GitLab Sync
+## GitHub ↔ GitLab Sync (diagram)
 
-```mermaid  
+```mermaid
 flowchart LR
   Dev[(Local repo)]
   GH[(GitHub: origin)]
   GL[(GitLab: gitlab)]
 
-  Dev -- "git pushall / ./git-sync.sh" --> GH
-  Dev -- "git pushall / ./git-sync.sh" --> GL
-
-  GH -. optional mirroring .- GL
+  Dev -- "git-sync.sh" --> GH
+  Dev -- "git-sync.sh" --> GL
 ```
 
 ---
