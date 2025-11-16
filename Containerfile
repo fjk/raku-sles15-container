@@ -36,7 +36,7 @@ RUN sh -lc '\
         echo "ERROR: zef not found at $ZEF"; \
         exit 1; \
       fi; \
-      echo "$modules" | xargs -r "$ZEF" install --/test; \
+      echo "$modules" | xargs -r "$ZEF" install --/test --verbose; \
     else \
       echo "No modules to install (modules.conf is empty or only comments)."; \
     fi; \
