@@ -213,6 +213,8 @@ In the repository root:
 
 # GitHub ↔ GitLab Sync
 
+```md
+```mermaid  
 flowchart LR
   Dev[(Local repo)]
   GH[(GitHub: origin)]
@@ -222,6 +224,7 @@ flowchart LR
   Dev -- "git pushall / ./git-sync.sh" --> GL
 
   GH -. optional mirroring .- GL
+```
 
 ---
 
